@@ -1,0 +1,155 @@
+# version: '3.8'
+
+# services:
+#   # 🖥️ Main HTTP Server - Your own file server
+#   http-server:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     container_name: http-file-server
+#     ports:
+#       - "2222:2222"  # Host:Container port mapping
+#     volumes:
+#       - .:/srv/files  # Serve current directory
+#     restart: unless-stopped
+#     environment:
+#       - PYTHONUNBUFFERED=1
+#     networks:
+#       - http-network
+#     healthcheck:
+#       test: ["CMD", "python", "client.py", "http://localhost:2222/"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 3
+
+#   # 👥 Friend's HTTP Server - For testing access between servers
+#   http-server-friend:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     container_name: http-file-server-friend
+#     ports:
+#       - "2223:2222"  # Host port 2223 -> Container port 2222
+#     volumes:
+#       - ./friend_files:/srv/files  # Mount different folder for friend's files
+#     restart: unless-stopped
+#     environment:
+#       - PYTHONUNBUFFERED=1
+#     networks:
+#       - http-network
+#     healthcheck:
+#       # Fixed: Use port 2222 inside the container, not 2223
+#       test: ["CMD", "python", "client.py", "http://localhost:2222/"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 3
+
+#   # 💻 HTTP Client - For interactive testing
+#   http-client:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     container_name: http-client
+#     command: sleep infinity  # Keep container alive for manual testing
+#     stdin_open: true
+#     tty: true
+#     volumes:
+#       - ./downloads:/downloads  # Mount a directory for downloads
+#     working_dir: /app
+#     networks:
+#       - http-network
+#     depends_on:
+#       - http-server
+#       - http-server-friend
+
+# # 🌐 Custom Docker network (bridge) with unique subnet
+# networks:
+#   http-network:
+#     driver: bridge
+#     ipam:
+#       config:
+#         - subnet: 172.31.0.0/16  # ✅ Unique subnet to avoid overlap
+
+# # 📁 Define named volumes (optional for persistence)
+# volumes:
+#   shared_files:
+#   friend_files:
+#   downloads:
+version: '3.8'
+
+services:
+  # 🖥️ Main HTTP Server - Your own file server
+  http-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: http-file-server
+    ports:
+      - "2222:2222"  # Host:Container port mapping
+    volumes:
+      - .:/srv/files  # Serve current directory
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - http-network
+    healthcheck:
+      test: ["CMD", "python", "client.py", "http://localhost:2222/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 👥 Friend's HTTP Server - For testing access between servers
+  http-server-friend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: http-file-server-friend
+    ports:
+      - "2223:2222"  # Host port 2223 -> Container port 2222
+    volumes:
+      - ./friend_files:/srv/files  # Mount different folder for friend's files
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - http-network
+    healthcheck:
+      # Fixed: Use port 2222 inside the container, not 2223
+      test: ["CMD", "python", "client.py", "http://localhost:2222/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 💻 HTTP Client - For interactive testing
+  http-client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: http-client
+    command: sleep infinity  # Keep container alive for manual testing
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./downloads:/downloads  # Mount a directory for downloads
+    working_dir: /app
+    networks:
+      - http-network
+    depends_on:
+      - http-server
+      - http-server-friend
+
+# 🌐 Custom Docker network (bridge) with unique subnet
+networks:
+  http-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.0.0/16  # ✅ Unique subnet to avoid overlap
+
+# 📁 Define named volumes (optional for persistence)
+volumes:
+  shared_files:
+  friend_files:
+  downloads:
+  
