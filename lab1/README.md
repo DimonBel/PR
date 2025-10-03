@@ -1,8 +1,7 @@
 # HTTP File Server with TCP Sockets
 
 ### Course: Computer Networks
-### Author: [Your Name]
-
+### Author: Belih Dmitrii
 ----
 
 ## Theory
