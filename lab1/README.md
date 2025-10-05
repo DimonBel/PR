@@ -1,10 +1,13 @@
 # HTTP File Server with TCP Sockets
 
 ### Course: Computer Networks
+
 ### Author: Belih Dmitrii
-----
+
+---
 
 ## Theory
+
 &emsp;&emsp;&emsp; An HTTP server is a software application that handles HTTP requests from clients (typically web browsers) and serves responses, usually in the form of web pages, files, or data. The Hypertext Transfer Protocol (HTTP) is the foundation of data communication on the World Wide Web. It operates on a client-server model where clients send requests to servers, and servers respond with the requested resources.
 
 &emsp;&emsp;&emsp; TCP sockets provide a reliable, connection-oriented communication channel between two endpoints. In the context of HTTP, TCP ensures that data packets are delivered in order and without loss, which is crucial for web communication. The server listens on a specific port (commonly 80 for HTTP) for incoming connections, accepts them, processes the requests, and sends back responses.
@@ -56,6 +59,7 @@ The `HTTPServer` class represents a simple HTTP file server implemented using TC
 Initializes the HTTP server with the specified directory, host, port, and auto-port settings.
 
 **Parameters:**
+
 - `directory` (str): Path to the directory to serve files from.
 - `host` (str): Host address to bind to (default: '0.0.0.0').
 - `port` (int): Port number to listen on (default: 8080).
@@ -66,10 +70,12 @@ Initializes the HTTP server with the specified directory, host, port, and auto-p
 Finds an available port starting from the specified port.
 
 **Parameters:**
+
 - `start_port` (int): The starting port number to check.
 - `max_attempts` (int): Maximum number of ports to try (default: 100).
 
 **Returns:**
+
 - `int`: The first available port number.
 
 ##### 3. `start(self)`
@@ -81,9 +87,11 @@ Starts the HTTP server, binds to the specified host and port, and begins accepti
 Handles a single HTTP request from a client.
 
 **Parameters:**
+
 - `client_socket` (socket): The client socket connection.
 
 **Logic:**
+
 1. Receive the HTTP request.
 2. Parse the request line to extract method, path, and version.
 3. Validate the request (only GET method is supported).
@@ -98,10 +106,12 @@ Handles a single HTTP request from a client.
 Serves a file to the client with appropriate HTTP headers.
 
 **Parameters:**
+
 - `client_socket` (socket): The client socket connection.
 - `file_path` (str): Path to the file to serve.
 
 **Logic:**
+
 1. Read the file content in binary mode.
 2. Determine the MIME type using `mimetypes.guess_type()`.
 3. Send HTTP 200 OK response with proper headers.
@@ -112,11 +122,13 @@ Serves a file to the client with appropriate HTTP headers.
 Generates and serves an HTML directory listing.
 
 **Parameters:**
+
 - `client_socket` (socket): The client socket connection.
 - `dir_path` (str): Path to the directory to list.
 - `url_path` (str): The URL path corresponding to the directory.
 
 **Logic:**
+
 1. List directory entries and sort them.
 2. Generate HTML with CSS styling for the directory listing.
 3. Include parent directory link if not at root.
@@ -128,6 +140,7 @@ Generates and serves an HTML directory listing.
 Sends an HTTP 404 Not Found response with a custom HTML page.
 
 **Parameters:**
+
 - `client_socket` (socket): The client socket connection.
 - `path` (str): The requested path that was not found.
 
@@ -136,6 +149,7 @@ Sends an HTTP 404 Not Found response with a custom HTML page.
 Sends a simple HTTP response with the specified status.
 
 **Parameters:**
+
 - `client_socket` (socket): The client socket connection.
 - `status_code` (int): HTTP status code.
 - `status_text` (str): HTTP status text.
@@ -158,13 +172,16 @@ The `HTTPClient` class implements a simple HTTP client using TCP sockets for tes
 Fetches a resource from the specified URL.
 
 **Parameters:**
+
 - `url` (str): The URL to fetch.
 - `output_file` (str, optional): File path to save the response body.
 
 **Returns:**
+
 - `tuple`: (status_code, headers, body)
 
 **Logic:**
+
 1. Parse the URL to extract host, port, and path.
 2. Create a TCP socket and connect to the server.
 3. Build and send an HTTP GET request.
@@ -178,6 +195,7 @@ Fetches a resource from the specified URL.
 The project includes Docker configuration for containerized deployment:
 
 #### **Dockerfile**
+
 - Uses Python 3.11 slim base image.
 - Copies server and client scripts.
 - Creates sample files for demonstration.
@@ -185,12 +203,14 @@ The project includes Docker configuration for containerized deployment:
 - Runs the server by default.
 
 #### **docker-compose.yml**
+
 - Defines three services: main server, friend's server, and client.
 - Uses custom network with unique subnet.
 - Includes health checks and volume mounts.
 - Enables inter-container communication.
 
 #### **start-servers.sh**
+
 - Shell script to start the Docker services.
 - Detects local network IP for network access.
 - Displays URLs for local and network access.
@@ -235,6 +255,7 @@ docker-compose down
 This laboratory work provided hands-on experience with low-level network programming using TCP sockets and HTTP protocol implementation. By building a complete HTTP file server from scratch, I gained a deep understanding of how web servers work at the socket level.
 
 Key learnings include:
+
 - TCP socket programming for reliable network communication
 - HTTP request/response parsing and generation
 - MIME type handling for different file formats
@@ -245,11 +266,25 @@ Key learnings include:
 
 The implementation successfully handles static file serving, directory browsing, and supports multiple file types. The Docker setup enables easy deployment and testing in containerized environments.
 
-<!-- ![Server running in terminal](screenshots/server_running.png) -->
+![Server running in terminal](img/img3.jpg)
+_Server successfully serving files from the specified directory_
 
-*Server successfully serving files from the specified directory*
+![Client running in terminal](img/img2.jpg)
+
+![Client running in terminal](img/img1.jpg)
+_Client takes successfully serving files from the specified directory_
+
+![UI of server ](img/UI.jpg)
+_UI of server_
+
+![PDF open in server](img/PDF.jpg)
+_PDF open in server_
+
+![txt open in server](img/txt.jpg)
+_txt open in server_
 
 ## References
+
 - https://tools.ietf.org/html/rfc7230 (HTTP/1.1 Message Syntax and Routing)
 - https://tools.ietf.org/html/rfc7231 (HTTP/1.1 Semantics and Content)
 - https://docs.python.org/3/library/socket.html (Python Socket Library)
