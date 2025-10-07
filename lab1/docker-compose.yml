@@ -143,9 +143,9 @@ services:
 networks:
   http-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.31.0.0/16  # ✅ Unique subnet to avoid overlap
+    # ipam:
+    #   config:
+    #     - subnet: 172.31.0.0/16  # ✅ Unique subnet to avoid overlap
 
 # 📁 Define named volumes (optional for persistence)
 volumes:
