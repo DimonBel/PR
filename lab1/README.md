@@ -43,7 +43,7 @@ _UI of server_
 _PDF open in server_
 
 ![txt open in server](img/manreq.jpg)
-_Image+HTML code output_
+_Image+HTML code output that it takes two request one for text is and the second request is for display the image_
 
 ![txt open in server](img/txt.jpg)
 _image open in server_
@@ -81,6 +81,8 @@ _Opens new folders in html on server_
 
 _Here is shows that each 30seconds it runs the client code to check conection inside conainer if it is running or its died_
 
+![txt open in server](img/health3.jpg)
+_Here it is shows all logs how it works inside computers_
 ![txt open in server](img/save.jpg)
 
 _Here it is how server save with client in my directory takes the file and save on necessary folder_
