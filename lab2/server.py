@@ -21,7 +21,7 @@ class HTTPServerLab2:
         workers: int = 32,
         delay_sec: float = 1.0,
         counter_mode: str = "locked",
-        rate_limit: int = 4,
+        rate_limit: int = 5,
         rate_window: float = 1.0,
     ):
         self.directory = os.path.abspath(directory)
@@ -46,7 +46,7 @@ class HTTPServerLab2:
         if not os.path.isdir(self.directory):
             raise ValueError(f"Directory '{directory}' does not exist")
 
-    # -------------------- Port utils --------------------
+    #  Port utils 
     def find_available_port(self, start_port, max_attempts=100):
         for port in range(start_port, start_port + max_attempts):
             try:
@@ -61,7 +61,7 @@ class HTTPServerLab2:
             f"Could not find available port in range {start_port}-{start_port + max_attempts}"
         )
 
-    # -------------------- Rate limiting --------------------
+    #  Rate limiting 
     def _allow_request(self, ip: str) -> bool:
         now = time.monotonic()
         with self._rate_lock:
@@ -77,7 +77,7 @@ class HTTPServerLab2:
             dq.append(now)
             return True
 
-    # -------------------- Counters --------------------
+    #Counters 
     def _increment_count_locked(self, rel_path: str):
         with self._counts_lock:
             self._counts[rel_path] = self._counts.get(rel_path, 0) + 1
@@ -152,7 +152,7 @@ class HTTPServerLab2:
                 self.socket.close()
             print("✓ Server stopped")
 
-    # -------------------- Request handling --------------------
+    #Request handling 
     def _handle_client(self, client_socket: socket.socket, client_address: Tuple[str, int]):
         try:
             ip, _ = client_address
@@ -222,7 +222,7 @@ class HTTPServerLab2:
                 pass
             client_socket.close()
 
-    # -------------------- Response helpers --------------------
+    # Response helpers 
     def serve_file(self, client_socket, file_path):
         try:
             with open(file_path, "rb") as f:
@@ -365,8 +365,6 @@ class HTTPServerLab2:
 
 
 def main():
-    # CLI: python3 lab2/server_lab2.py <directory> [port]
-    # Env overrides for quick testing are also possible but we keep a simple CLI here.
     if len(sys.argv) < 2:
         print("Usage: python server_lab2.py <directory> [port]")
         print("Example: python server_lab2.py . 8080")

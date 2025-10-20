@@ -1,77 +1,61 @@
-# Lab 2: Concurrent HTTP Server
+# Concurrent HTTP File Server 
 
-This folder contains a multithreaded HTTP server implementation and benchmarking utilities for Lab 2.
+### Course: Computer Networks
 
-## Files
+### Author: Belih Dmitrii
 
-- `server_threaded.py`: Thread-pooled HTTP server with:
-  - Artificial per-request delay (default 1s)
-  - Per-file request counter (naive or locked)
-  - Per-IP rate limiting (~5 req/s by default)
-  - Directory listing that shows per-file request counts
-- `client_bench.py`: Benchmarking client to test concurrency and rate limiting.
+---
 
-## Running the server
+### Running the Server
 
 ```bash
-# From the project root or lab2 directory
-python3 lab2/server_threaded.py
+python server.py /path/to/directory 8080
 ```
 
-Environment variables to configure behavior:
 
-- `PORT` (default `8080`): Server port
-- `HOST` (default `0.0.0.0`)
-- `WORKERS` (default `32`): Thread pool size
-- `DOC_ROOT` (default current working directory when server starts)
-- `DELAY` (default `1.0`): Artificial per-request delay in seconds
-- `COUNTER_MODE` (default `locked`): `naive` or `locked`
-- `RATE_LIMIT` (default `5`): Max requests per second per IP
-- `RATE_WINDOW` (default `1.0`): Window size in seconds
-
-Examples:
+### Docker
 
 ```bash
-# Serve current project root with 1s delay, locked counters, and default rate limit
-PORT=8080 WORKERS=32 DELAY=1.0 COUNTER_MODE=locked python3 lab2/server_threaded.py
+docker-compose up -d
 
-# Demonstrate race condition in naive counter
-COUNTER_MODE=naive python3 lab2/server_threaded.py
+# Stop services
+docker-compose down
 ```
 
-## Benchmark: Concurrency
+![Server running in terminal](img/img3.jpg)
+_Server successfully serving files from the specified directory_
 
-Run the benchmarking client to issue N concurrent requests and measure total time:
 
-```bash
-# Issue 10 concurrent requests to root
-python3 lab2/client_bench.py --url http://localhost:8080/ --concurrent 10 --mode concurrency
-```
+![UI of server ](img/newUI.jpg)
+_UI of server with count_
 
-Expected timing:
-- Single-threaded baseline (from Lab 1) with 1s delay: ~10s for 10 requests.
-- Multithreaded (workers >= 10): ~1–2s for 10 requests.
+![PDF open in server](img/PDF.jpg)
+_PDF open in server_
 
-## Benchmark: Rate limiting
+![txt open in server](img/manreq.jpg)
+_Image+HTML code output that it takes two request one for text is and the second request is for display the image_
 
-Test with a single client sending at a specified rate (req/s):
+![txt open in server](img/txt.jpg)
+_image open in server_
 
-```bash
-# Send at 10 req/s for 5s and observe 429s around the 5 req/s limit
-python3 lab2/client_bench.py --url http://localhost:8080/ --mode rate --rate 10 --rate-duration 5
+![txt open in server](img/txtfilehtml.jpg)
 
-# Send below the limit (e.g., 4 req/s) and expect near 100% success
-python3 lab2/client_bench.py --url http://localhost:8080/ --mode rate --rate 4 --rate-duration 5
-```
+_TXT shows open in server_
 
-For a two-client test (simulating two IPs), run the rate test from two different machines or containers so they have different source IPs. Otherwise, results are per the same IP and will share the limit.
+![txt open in server](img/sameint.jpg)
 
-## Directory listing with counts
+_Same internet connection ( from my phone and same WI-FI)_
 
-The server shows per-file request counts next to files in directory listings. Counts are keyed by the file path relative to the document root.
+![txt open in server](img/404.jpg)
 
-## Notes
+_404 page generate if not this file on my computer folder_
 
-- This server is a simple educational implementation (HTTP/1.1 without keep-alive or chunked encoding). It is suitable for local testing and learning, not for production.
-- The rate limiter uses a sliding window per IP with a shared lock for simplicity.
-- The naive counter intentionally introduces a race to demonstrate incorrect results under concurrency; use `COUNTER_MODE=locked` for the correct solution.
+
+![txt open in server](img/dockerfile.jpg)
+
+_How I run python in docker file_
+
+
+![txt open in server](img/par.jpg)
+
+_How a multiple request per second works_
