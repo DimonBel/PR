@@ -59,3 +59,8 @@ _How I run python in docker file_
 ![txt open in server](img/par.jpg)
 
 _How a multiple request per second works_
+
+
+![Server loading animation](video/video.gif)
+
+_Demo video_
