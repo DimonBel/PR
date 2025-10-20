@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  http-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: http-file-server
+    ports:
+      - "2222:2222"
+    volumes:
+      - .:/srv/files
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - http-network
+
+
+# 🌐 Custom Docker network (bridge)
+networks:
+  http-network:
+    driver: bridge
+
+#  Define named volumes
+volumes:
+  shared_files:
+  friend_files:
+  downloads:
