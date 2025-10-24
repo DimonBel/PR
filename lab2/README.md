@@ -16,6 +16,23 @@ _Server successfully serving files from the specified directory_
 
 _UI of server with count_
 
+"naive" mode (HAS RACE CONDITION)
+```
+def _increment_count_naive(self, rel_path: str):
+    if rel_path not in self._counts:
+        self._counts[rel_path] = 0
+        time.sleep(0.001)  #Increases race condition probability
+    self._counts[rel_path] += 1
+```
+And NO RACE CONDITION
+
+```
+    def _increment_count_locked(self, rel_path: str):
+        with self._counts_lock:
+            self._counts[rel_path] = self._counts.get(rel_path, 0) + 1
+```
+Here it is shows how race condition is avoiding because each request from different users is locked 
+
 ![txt open in server](img/par.jpg)
 
 _How a multiple request per second works_
@@ -46,3 +63,5 @@ Concurrent server has a 1 second delay (DELAY=1.0 by default) that happens befor
 ![Server loading animation](video/video.gif)
 
 _Demo video_
+
+
