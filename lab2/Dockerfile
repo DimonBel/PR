@@ -11,4 +11,4 @@ RUN chmod +x server.py
 
 EXPOSE 2222
 
-CMD ["python", "server.py", "/srv/files", "2222"]
+CMD ["python", "server.py", "/srv/files", "3333"]

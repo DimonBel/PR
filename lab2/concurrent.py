@@ -42,17 +42,17 @@ def run_concurrency(url: str, n: int):
     elapsed = time.time() - t0
     status_count = defaultdict(int)
     for status, _ in results.values():
-        status_count[status] += 1
+        status_count[status] += 1  # Fix the bug here
     print(f"Completed {n} requests in {elapsed:.2f}s")
     for st in sorted(status_count.keys()):
         print(f"  {st}: {status_count[st]}")
 
-
 def main():
     # url = 'http://localhost:8080/'  
-    url = 'http://localhost:2222/folder/photo_2025-09-19_02-54-42.jpg'
-    concurrency = 50  # Concurrent requests
+    url = 'http://localhost:3333'
+    concurrency = 22  #requests
     
+
     print(f"Running {concurrency} concurrent requests to {url}")
     run_concurrency(url, concurrency)
 

@@ -1,13 +1,13 @@
 version: "3.8"
 
 services:
-  http-server:
+  http-server_lab2:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: http-file-server
+    container_name: http-file-server_lab2
     ports:
-      - "2222:2222"
+      - "3333:3333"
     volumes:
       - .:/srv/files
     restart: unless-stopped
