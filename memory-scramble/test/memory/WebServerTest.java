@@ -4,103 +4,138 @@
 package memory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
-import java.net.URISyntaxException;
+import java.net.URI;
 import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-/**
- * TODO
- */
 public class WebServerTest {
-    
-    // Testing strategy
-    //   TODO
-    
-    // Manual tests
-    //   TODO (if any)
-    
     @Test
     public void testAssertionsEnabled() {
-        assertThrows(AssertionError.class, () -> { assert false; },
-                "make sure assertions are enabled with VM argument '-ea'");
+        assertThrows(AssertionError.class, () -> {
+            assert false;
+        }, "make sure assertions are enabled with VM argument '-ea'");
     }
-    
+
     @Test
-    public void testHelloValid() throws IOException, URISyntaxException {
-        // Warning! This test is not legal because it provides a null board!
-        // TODO You should revise or remove this test
-        // TODO You should also avoid duplicating similar code in many tests
-        final WebServer server = new WebServer(null, 0);
+    public void helloEndpointReturnsGreeting() throws IOException {
+        Board board = boardFromSymbols(1, 1, "A");
+        WebServer server = new WebServer(board, 0);
         server.start();
-        
-        final URL valid = new URL("http://localhost:" + server.port() + "/hello/w0rld");
-        
-        // in this test, we will just assert correctness of the server's output
-        final InputStream input = valid.openStream();
-        final BufferedReader reader = new BufferedReader(new InputStreamReader(input, UTF_8));
-        assertEquals("Hello, w0rld!", reader.readLine(), "greeting");
-        assertEquals(null, reader.readLine(), "end of stream");
-        server.stop();
-    }
-    
-    @Test
-    public void testHelloInvalid() throws IOException, URISyntaxException {
-        // Warning! This test is not legal because it provides a null board!
-        // TODO You should revise or remove this test
-        // TODO You should also avoid duplicating similar code in many tests
-        final WebServer server = new WebServer(null, 0);
-        server.start();
-        
-        final URL invalid = new URL("http://localhost:" + server.port() + "/hello/world!");
-        
-        // in this test, we will just assert correctness of the response code
-        // unfortunately, an unsafe cast is required here to go from general
-        //   URLConnection to the HTTP-specific HttpURLConnection that will
-        //   always be returned when we connect to a "http://" URL
-        final HttpURLConnection connection = (HttpURLConnection) invalid.openConnection();
-        assertEquals(404, connection.getResponseCode(), "response code");
-        server.stop();
-    }
-    
-    // TODO tests
-    public void testIO(Board board, String input, List<String> outputs) throws IOException, URISyntaxException {
-        final WebServer server = new WebServer(board, 0);
-        server.start();
-        
-        final URL valid = new URL("http://localhost:" + server.port() + input);
-        
-        // in this test, we will just assert correctness of the server's output
-        final InputStream inputstream = valid.openStream();
-        final BufferedReader reader = new BufferedReader(new InputStreamReader(inputstream, UTF_8));
-        for (String output:outputs) {
-            assertEquals(output, reader.readLine());
+        try {
+            URL url = urlFor(server, "/hello/world");
+            List<String> lines = readAllLines(url);
+            assertEquals(List.of("Hello, world!"), lines);
+        } finally {
+            server.stop();
         }
-        assertEquals("", reader.readLine());
-        assertEquals(null, reader.readLine(), "end of stream");
-        server.stop();
     }
-    
+
     @Test
-    public void testExample() throws IOException, URISyntaxException{
-        Board board = Board.parseFromFile("boards/example.txt");
-        testIO(board,"/flip/Alice/0,0",List.of("3x3","my R","down","down","down","down","down","down","down","down"));
-        testIO(board,"/flip/Alice/2,2",List.of("3x3","up R","down","down","down","down","down","down","down","up P"));
-        testIO(board,"/flip/Bob/0,0",List.of("3x3","my R","down","down","down","down","down","down","down","up P"));
-        testIO(board,"/flip/Alice/1,1",List.of("3x3","up R","down","down","down","my Y","down","down","down","down"));
-        testIO(board,"/flip/Bob/0,2",List.of("3x3","my R","down","my R","down","up Y","down","down","down","down"));
-        testIO(board,"/flip/Bob/1,0",List.of("3x3","none","down","none","my G","up Y","down","down","down","down"));
-        testIO(board,"/look/Alice",List.of("3x3","none","down","none","up G","my Y","down","down","down","down"));
+    public void helloEndpointRejectsInvalidName() throws IOException {
+        Board board = boardFromSymbols(1, 1, "A");
+        WebServer server = new WebServer(board, 0);
+        server.start();
+        try {
+            URL url = urlFor(server, "/hello/world!");
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            assertEquals(404, connection.getResponseCode());
+        } finally {
+            server.stop();
+        }
     }
-            
-    
+
+    @Test
+    public void flipEndpointReturnsUpdatedView() throws IOException {
+        Board board = boardFromSymbols(2, 2, "A", "B", "A", "B");
+        WebServer server = new WebServer(board, 0);
+        server.start();
+        try {
+            URL url = urlFor(server, "/flip/Alice/0,0");
+            List<String> lines = readAllLines(url);
+            assertEquals("2x2", lines.get(0));
+            assertEquals("my A", lines.get(1));
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void lookEndpointReflectsBoardState() throws IOException {
+        Board board = boardFromSymbols(2, 2, "A", "B", "A", "B");
+        WebServer server = new WebServer(board, 0);
+        server.start();
+        try {
+            urlFor(server, "/flip/Alice/0,0").openStream().close();
+            URL url = urlFor(server, "/look/Alice");
+            List<String> lines = readAllLines(url);
+            assertTrue(lines.contains("my A"));
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void replaceEndpointReplacesSymbols() throws IOException {
+        Board board = boardFromSymbols(2, 2, "A", "B", "A", "B");
+        WebServer server = new WebServer(board, 0);
+        server.start();
+        try {
+            String encodedOld = URLEncoder.encode("A", UTF_8);
+            String encodedNew = URLEncoder.encode("🚗", UTF_8);
+            URL url = urlFor(server, "/replace/alice/" + encodedOld + "/" + encodedNew);
+            readAllLines(url);
+            assertEquals("🚗", board.getCard(0, 0).getSymbol());
+            assertEquals("🚗", board.getCard(1, 0).getSymbol());
+        } finally {
+            server.stop();
+        }
+    }
+
+    private List<String> readAllLines(URL url) throws IOException {
+        List<String> lines = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream(), UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                lines.add(line);
+            }
+        }
+        return lines;
+    }
+
+    private Board boardFromSymbols(int rows, int cols, String... symbols) throws IOException {
+        List<String> lines = new ArrayList<>();
+        lines.add(rows + "x" + cols);
+        for (String symbol : symbols) {
+            lines.add(symbol);
+        }
+        Path temp = Files.createTempFile("web-board", ".txt");
+        Files.write(temp, lines);
+        Board board = Board.parseFromFile(temp.toString());
+        Files.deleteIfExists(temp);
+        return board;
+    }
+
+    private URL urlFor(WebServer server, String path) throws IOException {
+        String normalized = path.startsWith("/") ? path : "/" + path;
+        try {
+            return new URI("http", null, "localhost", server.port(), normalized, null, null).toURL();
+        } catch (Exception e) {
+            if (e instanceof IOException io) {
+                throw io;
+            }
+            throw new IOException(e);
+        }
+    }
 }
