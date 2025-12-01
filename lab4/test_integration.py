@@ -259,23 +259,20 @@ def test_read_nonexistent_key():
 
 
 def run_all_tests():
-    """Run all integration tests"""
+    """Run all integration tests without restarting containers"""
     print("\n" + "=" * 70)
-    print("KEY-VALUE STORE INTEGRATION TESTS")
+    print("KEY-VALUE STORE INTEGRATION TESTS (NO DOCKER RESTART)")
     print("Single-Leader Replication System")
     print("=" * 70)
 
-    # Start services
-    print("\n🚀 Starting Docker containers...")
-    subprocess.run(["docker-compose", "down"], capture_output=True)
-    time.sleep(2)
-    subprocess.run(["docker-compose", "up", "-d"], capture_output=True)
+    print("\n🔍 Checking if services are already running...")
 
-    if not wait_for_services():
-        print("\n❌ Services failed to start. Aborting tests.")
+    if not wait_for_services(timeout=20):
+        print("❌ Services are not running. Start docker-compose manually first.")
         return False
 
-    # Run tests
+    print("🚀 Services detected, starting tests...\n")
+
     tests = [
         test_leader_health,
         test_followers_health,
@@ -284,13 +281,14 @@ def run_all_tests():
         test_multiple_writes,
         test_quorum_configuration,
         test_read_nonexistent_key,
+        test_race_condition_single_key,
     ]
 
     results = []
     for test in tests:
         result = test()
         results.append(result)
-        time.sleep(0.5)  # Small delay between tests
+        time.sleep(0.5)
 
     # Summary
     print("\n" + "=" * 70)
@@ -309,6 +307,54 @@ def run_all_tests():
     print("\n" + "=" * 70)
 
     return passed == total
+
+
+def test_race_condition_single_key():
+    print("\n" + "=" * 70)
+    print("TEST X: Race Condition — Same Key Writes")
+    print("=" * 70)
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    KEY = "race_test"
+    VALUES = [f"value_{i}" for i in range(100)]
+
+    def write_value(v):
+        try:
+            r = httpx.post(
+                f"{LEADER_URL}/write", json={"key": KEY, "value": v}, timeout=5
+            )
+            return r.status_code == 200
+        except:
+            return False
+
+    # concurrent writes
+    with ThreadPoolExecutor(max_workers=20) as ex:
+        results = list(ex.map(write_value, VALUES))
+
+    # Ensure most writes succeeded
+    if sum(results) < 90:
+        print("❌ Too many write failures")
+        return False
+
+    time.sleep(1)
+
+    # Read final value
+    r = httpx.get(f"{LEADER_URL}/read/{KEY}", timeout=5)
+    if r.status_code != 200:
+        print("❌ Race test key not found")
+        return False
+
+    final = r.json()["value"]
+    print(f"Final value stored: {final}")
+
+    expected = VALUES[-1]
+    if final == expected:
+        print("✅ PASSED: Last writer wins (no lost updates)")
+        return True
+    else:
+        print(f"❌ FAILED: Expected '{expected}' but got '{final}'")
+        return False
 
 
 if __name__ == "__main__":

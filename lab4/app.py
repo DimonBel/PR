@@ -6,23 +6,37 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Tuple, Optional
+import threading
 
 app = FastAPI()
 
 # --- Configuration ---
-ROLE = os.getenv("ROLE", "follower")  # 'leader' or 'follower'
+ROLE = os.getenv("ROLE", "follower")
 PORT = int(os.getenv("PORT", "5000"))
 FOLLOWERS_LIST = os.getenv("FOLLOWERS", "").split(",") if os.getenv("FOLLOWERS") else []
-# Delays in seconds
 MIN_DELAY = float(os.getenv("MIN_DELAY", "0"))
 MAX_DELAY = float(os.getenv("MAX_DELAY", "1"))
-# Default quorum (can be updated dynamically for the test)
 current_write_quorum = int(os.getenv("WRITE_QUORUM", "1"))
 
 # --- Storage ---
-# Store structure: {key: (value, timestamp)}
-# This allows us to track when each write occurred and prevent out-of-order updates
-store: Dict[str, Tuple[str, float]] = {}
+store: Dict[str, Tuple[str, float, int]] = {}
+
+# --- Locks ---
+store_lock = asyncio.Lock()
+config_lock = asyncio.Lock()
+
+# Sequence counter - using threading.Lock for true thread-safety
+_sequence_counter = 0
+_sequence_lock = threading.Lock()
+
+
+def get_next_sequence() -> int:
+    """Thread-safe sequence number generator"""
+    global _sequence_counter
+    with _sequence_lock:
+        _sequence_counter += 1
+        return _sequence_counter
+
 
 # --- Models ---
 
@@ -30,8 +44,8 @@ store: Dict[str, Tuple[str, float]] = {}
 class WriteRequest(BaseModel):
     key: str
     value: str
-    # Optional - leader will generate if not provided
     timestamp: Optional[float] = None
+    sequence: Optional[int] = None
 
 
 class ConfigRequest(BaseModel):
@@ -39,7 +53,6 @@ class ConfigRequest(BaseModel):
 
 
 # --- HTTP Client ---
-# Using a shared client for connection pooling
 client = httpx.AsyncClient()
 
 
@@ -58,22 +71,28 @@ async def health():
 
 @app.get("/read/{key}")
 async def read_key(key: str):
-    if key in store:
-        value, timestamp = store[key]
-        return {"key": key, "value": value, "timestamp": timestamp}
+    async with store_lock:
+        if key in store:
+            value, timestamp, sequence = store[key]
+            return {
+                "key": key,
+                "value": value,
+                "timestamp": timestamp,
+                "sequence": sequence,
+            }
     raise HTTPException(status_code=404, detail="Key not found")
 
 
 @app.get("/read_all")
 async def read_all():
-    # for compatibility with tests)
-    return {key: value for key, (value, timestamp) in store.items()}
+    async with store_lock:
+        return {key: value for key, (value, _, _) in store.items()}
 
 
 @app.delete("/clear")
 async def clear_store():
-    """Clear all data from the store."""
-    store.clear()
+    async with store_lock:
+        store.clear()
     return {"status": "cleared", "role": ROLE}
 
 
@@ -82,42 +101,49 @@ if ROLE == "follower":
 
     @app.post("/replication")
     async def replicate(data: WriteRequest):
-        # Only apply the update if it's newer than what we have
-        # This prevents out-of-order updates from overwriting newer data
-        if data.key in store:
-            current_value, current_timestamp = store[data.key]
-            if data.timestamp > current_timestamp:
-                # Newer update - apply it
-                store[data.key] = (data.value, data.timestamp)
+        async with store_lock:
+            should_apply = False
+
+            if data.key in store:
+                current_value, current_timestamp, current_sequence = store[data.key]
+                # Compare based on sequence first (primary), then timestamp as fallback (secondary)
+                # This ensures consistent ordering of updates
+                if data.sequence is not None and current_sequence is not None:
+                    # Use sequence number as primary ordering mechanism
+                    should_apply = data.sequence > current_sequence
+                elif data.timestamp is not None and current_timestamp is not None:
+                    # Use timestamp as secondary ordering mechanism when sequences are not available
+                    should_apply = data.timestamp > current_timestamp
+                else:
+                    # If both are None, apply the data
+                    should_apply = True
+            else:
+                should_apply = True
+
+            if should_apply:
+                store[data.key] = (data.value, data.timestamp, data.sequence)
                 return {"status": "ack", "applied": True}
             else:
-                # Stale update - ignore it
-                return {"status": "ack", "applied": False, "reason": "stale_timestamp"}
-        else:
-            # New key - apply it
-            store[data.key] = (data.value, data.timestamp)
-            return {"status": "ack", "applied": True}
+                return {"status": "ack", "applied": False, "reason": "stale_write"}
 
 
 # --- Leader Logic ---
 if ROLE == "leader":
 
-    # Endpoint to change quorum dynamically for the lab analysis
     @app.post("/config")
     async def update_config(cfg: ConfigRequest):
         global current_write_quorum
-        current_write_quorum = cfg.quorum
-        return {"status": "updated", "quorum": current_write_quorum}
+        async with config_lock:
+            current_write_quorum = cfg.quorum
+            return {"status": "updated", "quorum": current_write_quorum}
 
     async def send_replication(follower_url: str, data: WriteRequest):
         try:
-            # 1. Simulate Network Lag (Before sending)
             delay = random.uniform(MIN_DELAY, MAX_DELAY)
             await asyncio.sleep(delay)
 
-            # 2. Send Request
             resp = await client.post(
-                f"{follower_url}/replication", json=data.model_dump()
+                f"{follower_url}/replication", json=data.model_dump(), timeout=10.0
             )
             resp.raise_for_status()
             return True
@@ -127,51 +153,63 @@ if ROLE == "leader":
 
     @app.post("/write")
     async def write_key(data: WriteRequest):
-        # Generate timestamp if not provided (client writes don't include timestamp)
+        # CRITICAL: Assign sequence number IMMEDIATELY at entry
+        # This ensures sequence reflects arrival order
+        if data.sequence is None:
+            data.sequence = get_next_sequence()
+
         if data.timestamp is None:
             data.timestamp = time.time()
 
-        # 1. Write locally first with timestamp
-        store[data.key] = (data.value, data.timestamp)
+        final_sequence = data.sequence
+        final_timestamp = data.timestamp
 
-        # 2. Replicate to followers concurrently
-        if not FOLLOWERS_LIST or FOLLOWERS_LIST == [""]:
-            return {"status": "written_local_only"}
+        # Always replicate to followers regardless of whether we write locally
+        # This ensures followers get all updates that clients send to leader
+        should_replicate = True
 
-        # create tasks for all followers
+        # Write locally - only if sequence is newer
+        async with store_lock:
+            should_write = True
+
+            if data.key in store:
+                _, existing_timestamp, existing_sequence = store[data.key]
+                # Only write if our sequence is strictly greater
+                if (
+                    existing_sequence is not None
+                    and final_sequence <= existing_sequence
+                ):
+                    should_write = False
+
+            if should_write:
+                store[data.key] = (data.value, final_timestamp, final_sequence)
+
+        # Replicate to followers if needed
+        if not should_replicate or not FOLLOWERS_LIST or FOLLOWERS_LIST == [""]:
+            return {"status": "success"}
+
+        async with config_lock:
+            required_acks = current_write_quorum
+
         tasks = [send_replication(url, data) for url in FOLLOWERS_LIST]
-
-        # 3. wait for Quorum
-        # we use as_completed to return as soon as we hit the quorum count
-        required_acks = current_write_quorum
-
-        # we gather all tasks, but we want to respond as soon as 'required_acks' succeed.
-        # standard asyncio.gather waits for all. We need a smarter approach for latency analysis.
-        finished_acks = 0
-
-        # if quorum is 0 or 1 (local write is 1), we might return immediately,
-        # but usually Quorum implies "Remote Confirmations" in this context?
-        # let's assume Quorum includes the Leader's own write.
-        # if Quorum = 2, we need Leader (done) + 1 Follower.
-
         needed_remote_acks = max(0, required_acks)
 
         if needed_remote_acks == 0:
-            # Fire and forget replication for remaining consistency
-            asyncio.gather(*tasks)
-            return {"status": "success", "quorum_met": True}
+            asyncio.create_task(asyncio.gather(*tasks, return_exceptions=True))
+            return {"status": "success"}
 
-        # execute concurrently
+        finished_acks = 0
+
         for coro in asyncio.as_completed(tasks):
-            success = await coro
-            if success:
-                finished_acks += 1
+            try:
+                success = await coro
+                if success:
+                    finished_acks += 1
 
-            if finished_acks >= needed_remote_acks:
-                break
-
-        # Note: The remaining tasks continue running in the background in real systems,
-        # but here we awaited the specific count.
+                if finished_acks >= needed_remote_acks:
+                    break
+            except Exception as e:
+                print(f"Replication error: {e}")
 
         if finished_acks >= needed_remote_acks:
             return {"status": "success"}
